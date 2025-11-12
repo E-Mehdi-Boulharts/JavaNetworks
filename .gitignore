@@ -1,0 +1,28 @@
+# Compiled Java files
+*.class
+*.jar
+*.war
+*.ear
+
+# Output directories
+out/
+bin/
+build/
+dist/
+target/
+
+# IDE
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
