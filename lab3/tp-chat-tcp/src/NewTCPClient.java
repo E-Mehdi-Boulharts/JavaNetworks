@@ -8,13 +8,18 @@ import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 
-
-public class TCPClient {
+/**
+ * TCP client for the lab.
+ * Enhancements for section 3.9:
+ * - Application-level messages with ChatMessage (type, seq, length)
+ * - Better error reporting for protocol and network errors
+ */
+public class NewTCPClient {
 
     private final String host;
     private final int port;
 
-    public TCPClient(String host, int port) {
+    public NewTCPClient(String host, int port) {
         this.host = host;
         this.port = port;
     }
@@ -31,10 +36,10 @@ public class TCPClient {
 
             try (Socket socket = new Socket()) {
 
-                // 2. Create Socket connection with a timeout for the connect()
+                // Connection timeout
                 socket.connect(new InetSocketAddress(host, port), 3000);
 
-                // Set read timeout: if no response after 30 seconds, raise exception
+                // Read timeout: if no response after 30 seconds, raise exception
                 socket.setSoTimeout(30_000);
 
                 System.out.println("Connection established.");
@@ -48,12 +53,12 @@ public class TCPClient {
                             new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8), true)) {
 
                     String line;
+                    int nextSeq = 1;
 
                     while (true) {
                         System.out.print("> ");
                         line = stdin.readLine();
 
-                        // User pressed CTRL+D or closed input
                         if (line == null) {
                             System.out.println("End of input. Closing connection.");
                             break;
@@ -61,28 +66,41 @@ public class TCPClient {
 
                         line = line.trim();
 
-                        // 6. Implement graceful shutdown on user command
                         if ("/quit".equalsIgnoreCase(line)) {
                             System.out.println("User requested to quit. Closing connection.");
                             break;
                         }
 
-                        // 6. Input validation: ignore empty lines
                         if (line.isEmpty()) {
                             continue;
                         }
 
-                        // Send message to server
-                        out.println(line);
+                        // Build a CHAT message and send it (3.9.1)
+                        ChatMessage msg = ChatMessage.chat(nextSeq++, line);
+                        out.println(ChatMessage.encode(msg));
 
                         // Read echo from server
                         try {
-                            String response = in.readLine();
-                            if (response == null) {
+                            String respWire = in.readLine();
+                            if (respWire == null) {
                                 System.out.println("Server closed the connection.");
                                 break;
                             }
-                            System.out.println(response);
+
+                            try {
+                                ChatMessage resp = ChatMessage.decode(respWire);
+
+                                if (resp.type == ChatMessage.Type.ERROR) {
+                                    System.out.println("[SERVER ERROR] " + resp.payload);
+                                } else {
+                                    System.out.printf("[server seq=%d type=%s len=%d] %s%n",
+                                            resp.seq, resp.type, resp.length, resp.payload);
+                                }
+
+                            } catch (ProtocolException pe) {
+                                System.out.println("[PROTOCOL ERROR] " + pe.getMessage());
+                            }
+
                         } catch (SocketTimeoutException e) {
                             System.out.println("[WARNING] No response from server (read timeout).");
                         }
@@ -90,10 +108,9 @@ public class TCPClient {
                 }
 
                 System.out.println("Disconnected from server. Bye.");
-                return; // Normal end of the client
+                return; // End of client
 
             } catch (IOException e) {
-                // 7. Handle connection errors and timeouts
                 System.err.println("Connection failed: " + e.getMessage());
 
                 if (attempt >= maxAttempts) {
@@ -121,7 +138,7 @@ public class TCPClient {
         String host = args[0];
         int port = Integer.parseInt(args[1]);
 
-        TCPClient client = new TCPClient(host, port);
+        NewTCPClient client = new NewTCPClient(host, port);
         client.start();
     }
 }
